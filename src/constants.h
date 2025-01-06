@@ -50,3 +50,9 @@
 #define PWM_BITS_BCKL 8
 #define PWM_MAX_BCKL ((1 << PWM_BITS_BCKL) - 1)
 #define SLEEP_TIMEOUT 10
+
+// ENCRYPTION
+#define SALT_SIZE 16
+#define KEY_SIZE 32
+#define ITERATIONS 10000
+#define KEY_FILE_PATH "/key.bin"

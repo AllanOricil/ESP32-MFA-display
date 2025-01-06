@@ -6,6 +6,7 @@
 #include "constants.h"
 #include "auth.h"
 #include "mfa.h"
+#include "encryption.hpp"
 
 static const char *TAG = "ui_events";
 
@@ -77,4 +78,12 @@ void on_pin_screen_form_submit(lv_event_t *e)
     config.unlock_attempts = config.max_unlock_attempts;
 
     lv_scr_load(ui_totp_screen);
+}
+
+void on_key_creation_form_submit(lv_event_t *e)
+{
+    const char *password = lv_textarea_get_text(ui_key_creation_screen_password_textarea);
+
+    ESP_LOGD(TAG, "Password: %s\n", password);
+    generate_key(password);
 }

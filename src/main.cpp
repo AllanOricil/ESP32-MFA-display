@@ -12,6 +12,7 @@
 #include "wifi.hpp"
 #include "touch-screen.hpp"
 #include "manager.hpp"
+#include "encryption.hpp"
 
 static const char *TAG = "main";
 
@@ -33,9 +34,9 @@ void setup()
 #endif
   ESP_LOGI(TAG, "----------- begin setup ------------");
   init_storage();
-  load_services();
   Configuration config = Configuration::load();
-
+  init_encryption(config.encryption.salt.c_str());
+  load_services();
   init_auth(
       config.authentication.pin.hash.c_str(),
       config.authentication.pin.key.c_str(),
@@ -46,7 +47,6 @@ void setup()
   init_touch_screen(config);
   const char *local_network_ip = init_wifi(config).c_str();
   init_clock();
-
   if (config.is_manager_configured())
   {
     init_manager(config, local_network_ip);

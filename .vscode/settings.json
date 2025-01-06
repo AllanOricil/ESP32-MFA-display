@@ -81,6 +81,11 @@
     "touch.h": "c",
     "pin.h": "c",
     "auth.h": "c",
-    "esp_log.h": "c"
+    "esp_log.h": "c",
+    "ui.h": "c",
+    "entropy.h": "c",
+    "ctr_drbg.h": "c",
+    "encryption.hpp": "c",
+    "spiffs.h": "c"
   }
 }

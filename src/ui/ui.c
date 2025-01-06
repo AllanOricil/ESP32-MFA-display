@@ -2,10 +2,11 @@
 
 static const char *TAG = "ui";
 
-uint32_t LV_EVENT_SETUP_COMPLETE;
 lv_obj_t *ui_init_screen;
 lv_obj_t *ui_totp_screen;
 lv_obj_t *ui_pin_screen;
+lv_obj_t *ui_key_creation_screen;
+lv_obj_t *ui_key_creation_screen_password_textarea;
 lv_obj_t *ui_touch_calibration_screen;
 lv_obj_t *ui_pin_screen_textarea;
 lv_obj_t *ui_touch_calibration_screen_label;
@@ -17,6 +18,7 @@ void ui_pin_screen_init(void);
 void ui_event_totp_screen(lv_event_t *e);
 void ui_event_pin_screen_keyboard_button(lv_event_t *e);
 void ui_event_pin_screen_textarea(lv_event_t *e);
+void ui_event_key_creation_screen_keybard(lv_event_t *e);
 void ui_totp_screen_update_totp_labels();
 void ui_totp_screen_update_totp_countdowns();
 void ui_totp_screen_render_totp_components();
@@ -57,6 +59,15 @@ void ui_event_pin_screen_textarea(lv_event_t *e)
     }
 }
 
+void ui_event_key_creation_screen_keybard(lv_event_t *e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    if (event_code == LV_EVENT_READY)
+    {
+        on_key_creation_form_submit(e);
+    }
+}
+
 void init_ui(
     bool display_pin_screen,
     int max_unlock_attempts)
@@ -73,10 +84,10 @@ void init_ui(
         lv_palette_main(LV_PALETTE_RED),
         true,
         LV_FONT_DEFAULT);
-    LV_EVENT_SETUP_COMPLETE = lv_event_register_id();
     lv_disp_set_theme(disp, theme);
     // NOTE: initialize screens
     ui_touch_calibration_screen_init();
+    ui_key_creation_screen_init();
     ui_totp_screen_init();
     ui_pin_screen_init();
     ESP_LOGI(TAG, "ui initialized");
@@ -84,14 +95,7 @@ void init_ui(
 
 void load_first_screen()
 {
-    if (config.display_pin_screen)
-    {
-        lv_scr_load(ui_pin_screen);
-    }
-    else
-    {
-        lv_scr_load(ui_totp_screen);
-    }
+    lv_scr_load(ui_key_creation_screen);
 }
 
 void ui_task_handler()

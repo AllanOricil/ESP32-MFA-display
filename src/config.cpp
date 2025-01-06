@@ -28,6 +28,9 @@ String Configuration::to_json_string(bool safe) const
 	_manager_authentication["password"] = manager.authentication.password;
 	_manager_authentication["session_length"] = manager.authentication.session_length;
 
+	JsonObject _encryption = doc.createNestedObject("encryption");
+	_encryption["salt"] = safe ? "*********" : encryption.salt;
+
 	String json;
 	serializeJson(doc, json);
 	return json;
@@ -130,6 +133,23 @@ Configuration Configuration::load()
 				config.manager.authentication.session_length = session_length > 0 ? session_length : MAX_MANAGER_SESSION_LENGTH;
 			}
 		}
+	}
+
+	if (root["encryption"].isMap())
+	{
+		if (root["encryption"]["salt"].isNull())
+		{
+			ESP_LOGE(TAG, "encryption.salt is empty");
+			throw std::runtime_error("encryption salt must be defined");
+		}
+
+		if (strlen(root.gettext("encryption:salt")) < 8)
+		{
+			ESP_LOGE(TAG, "encryption.salt must be at least 8 characters long");
+			throw std::runtime_error("encryption salt must be at least 8 characters long");
+		}
+
+		config.encryption.salt = root.gettext("encryption:salt");
 	}
 
 	ESP_LOGI(TAG, "config loaded successfully");

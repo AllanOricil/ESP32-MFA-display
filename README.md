@@ -104,6 +104,11 @@ wifi:
   # [REQUIRED] (text) wifi id
   ssid: test
 
+# [REQUIRED] used while generating a strong encryption key which will be used to encrypt the secrets of all added services
+encryption:
+  # [REQUIRED] (text) the secret must be strong and at least 8 characters long. When transferring your services to another board, you can recover the encryption key by entering the same password during the setup phase, provided the salt in your config.yml file remains unchanged. Note that the password will never be stored on the board for security purposes
+  salt: TUwNzIxF5lJncAJVMkmb4EiSP9vm0OyF
+
 # [REQUIRED] configure authentication for the board
 authentication:
   # [OPTIONAL] (number) [default 3] board is locked and requires a hard reset, after N wrong unlock attempts
