@@ -64,18 +64,20 @@ void ui_event_key_creation_screen_keybard(lv_event_t *e)
     lv_event_code_t event_code = lv_event_get_code(e);
     if (event_code == LV_EVENT_READY)
     {
-        on_key_creation_form_submit(e);
+        on_key_creation_screen_form_submit(e);
     }
 }
 
 void init_ui(
     bool display_pin_screen,
-    int max_unlock_attempts)
+    int max_unlock_attempts,
+    bool create_encryption_key)
 {
     ESP_LOGI(TAG, "initializing ui");
     config.display_pin_screen = display_pin_screen;
     config.unlock_attempts = max_unlock_attempts;
     config.max_unlock_attempts = max_unlock_attempts;
+    config.create_encryption_key = create_encryption_key;
 
     lv_disp_t *disp = lv_disp_get_default();
     lv_theme_t *theme = lv_theme_default_init(
@@ -87,15 +89,32 @@ void init_ui(
     lv_disp_set_theme(disp, theme);
     // NOTE: initialize screens
     ui_touch_calibration_screen_init();
-    ui_key_creation_screen_init();
     ui_totp_screen_init();
     ui_pin_screen_init();
+    if (create_encryption_key)
+    {
+        ui_key_creation_screen_init();
+    }
     ESP_LOGI(TAG, "ui initialized");
 }
 
 void load_first_screen()
 {
-    lv_scr_load(ui_key_creation_screen);
+    if (config.create_encryption_key)
+    {
+        lv_scr_load(ui_key_creation_screen);
+    }
+    else
+    {
+        if (config.display_pin_screen)
+        {
+            lv_scr_load(ui_pin_screen);
+        }
+        else
+        {
+            lv_scr_load(ui_totp_screen);
+        }
+    }
 }
 
 void ui_task_handler()

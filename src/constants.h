@@ -56,3 +56,5 @@
 #define KEY_SIZE 32
 #define ITERATIONS 10000
 #define KEY_FILE_PATH "/key.bin"
+#define MAX_PASSWORD_LENGTH 12
+#define MIN_PASSWORD_LENGTH 8

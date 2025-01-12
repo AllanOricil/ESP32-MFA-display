@@ -80,10 +80,22 @@ void on_pin_screen_form_submit(lv_event_t *e)
     lv_scr_load(ui_totp_screen);
 }
 
-void on_key_creation_form_submit(lv_event_t *e)
+void on_key_creation_screen_form_submit(lv_event_t *e)
 {
     const char *password = lv_textarea_get_text(ui_key_creation_screen_password_textarea);
-
     ESP_LOGD(TAG, "Password: %s\n", password);
-    generate_key(password);
+
+    size_t password_len = strlen(password);
+    if (password_len < MIN_PASSWORD_LENGTH)
+    {
+        char message[128];
+        sprintf(message, "Password is too short. Minimum %d characters is required", MIN_PASSWORD_LENGTH);
+        lv_obj_center(lv_msgbox_create(NULL, "ERROR", message, NULL, true));
+        return;
+    }
+
+    if (!generate_key(password))
+    {
+        ESP_LOGE(TAG, "Error while generating key");
+    }
 }

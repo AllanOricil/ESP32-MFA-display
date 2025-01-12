@@ -17,6 +17,7 @@ extern "C"
 		int unlock_attempts;
 		int max_unlock_attempts;
 		bool display_pin_screen;
+		bool create_encryption_key;
 	} Config;
 
 	extern lv_obj_t *ui_totp_screen;
@@ -34,7 +35,8 @@ extern "C"
 	void ui_event_pin_screen_textarea(lv_event_t *e);
 	void ui_event_key_creation_screen_keybard(lv_event_t *e);
 	void init_ui(bool display_pin_screen,
-				 int max_unlock_attempts);
+				 int max_unlock_attempts,
+				 bool create_encryption_key);
 	void load_first_screen();
 	void ui_task_handler();
 	void ui_totp_screen_update_totp_labels();
