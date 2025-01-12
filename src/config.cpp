@@ -25,7 +25,8 @@ String Configuration::to_json_string(bool safe) const
 	JsonObject _manager = doc.createNestedObject("manager");
 	JsonObject _manager_authentication = _manager.createNestedObject("authentication");
 	_manager_authentication["username"] = manager.authentication.username;
-	_manager_authentication["password"] = manager.authentication.password;
+	_manager_authentication["password"] = safe ? "*********" : manager.authentication.password;
+	_manager_authentication["key"] = safe ? "*********" : manager.authentication.key;
 	_manager_authentication["session_length"] = manager.authentication.session_length;
 
 	JsonObject _encryption = doc.createNestedObject("encryption");
