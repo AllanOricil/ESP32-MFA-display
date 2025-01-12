@@ -53,7 +53,8 @@ void setup()
   }
   init_ui(
       config.is_authentication_configured(),
-      config.authentication.unlock_attempts);
+      config.authentication.unlock_attempts,
+      !config.encryption.salt.isEmpty() || !key_exists());
   ESP_LOGI(TAG, "----------- end setup ------------");
 }
 

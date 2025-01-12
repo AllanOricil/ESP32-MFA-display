@@ -2,15 +2,18 @@
 
 static const char *TAG = "main";
 
-const unsigned char *_salt;
+uint8_t _salt[SALT_SIZE] = {0};
+uint8_t _key[KEY_SIZE] = {0};
 
 bool key_exists()
 {
 	return is_file_available(SPIFFS, KEY_FILE_PATH);
 }
 
-void generate_key(const char *password)
+bool generate_key(const char *password)
 {
+	ESP_LOGI(TAG, "generating derived key");
+	uint8_t salt[SALT_SIZE];
 	uint8_t key[KEY_SIZE];
 	mbedtls_entropy_context entropy;
 	mbedtls_ctr_drbg_context ctr_drbg;
@@ -18,50 +21,95 @@ void generate_key(const char *password)
 
 	mbedtls_entropy_init(&entropy);
 	mbedtls_ctr_drbg_init(&ctr_drbg);
+	mbedtls_md_init(&md_ctx);
 
-	const char *personalization = "key_gen";
+	// TODO: can this be static?
+	const char *ctr_drbg_personalization = "key_derivation";
 	int ret = mbedtls_ctr_drbg_seed(
 		&ctr_drbg,
 		mbedtls_entropy_func,
 		&entropy,
-		(const unsigned char *)personalization,
-		strlen(personalization));
+		(const unsigned char *)ctr_drbg_personalization,
+		strlen(ctr_drbg_personalization));
 	if (ret != 0)
 	{
-		ESP_LOGD(TAG, "CTR-DRBG seed initialization failed with error: %d", ret);
+		ESP_LOGE(TAG, "Failed to seed the CTR_DRBG: %d", ret);
+		mbedtls_md_free(&md_ctx);
+		mbedtls_ctr_drbg_free(&ctr_drbg);
 		mbedtls_entropy_free(&entropy);
-		return;
+		return false;
 	}
 
-	mbedtls_md_init(&md_ctx);
+	ret = mbedtls_ctr_drbg_random(
+		&ctr_drbg,
+		salt,
+		sizeof(salt));
+	if (ret != 0)
+	{
+		ESP_LOGE(TAG, "Salt generation failed: %d", ret);
+		mbedtls_md_free(&md_ctx);
+		mbedtls_ctr_drbg_free(&ctr_drbg);
+		mbedtls_entropy_free(&entropy);
+		return false;
+	}
+
+	const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+	if (!md_info)
+	{
+		ESP_LOGE(TAG, "Failed to get MD info for SHA256");
+		mbedtls_md_free(&md_ctx);
+		mbedtls_ctr_drbg_free(&ctr_drbg);
+		mbedtls_entropy_free(&entropy);
+		return false;
+	}
+
 	ret = mbedtls_md_setup(
 		&md_ctx,
-		mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-		0);
+		md_info,
+		1);
 	if (ret != 0)
 	{
 		ESP_LOGE(TAG, "Failed to setup MD context");
+		mbedtls_md_free(&md_ctx);
 		mbedtls_ctr_drbg_free(&ctr_drbg);
 		mbedtls_entropy_free(&entropy);
-		return;
+		return false;
+	}
+
+	ESP_LOGD(TAG, "password: %s", password);
+	ESP_LOGD(TAG, "salt: %s", salt);
+
+	if (!salt || !password)
+	{
+		ESP_LOGE(TAG, "Salt or password is empty");
+		mbedtls_md_free(&md_ctx);
+		mbedtls_ctr_drbg_free(&ctr_drbg);
+		mbedtls_entropy_free(&entropy);
+		return false;
 	}
 
 	ret = mbedtls_pkcs5_pbkdf2_hmac(
 		&md_ctx,
 		(const unsigned char *)password,
 		strlen(password),
-		_salt,
-		SALT_SIZE,
+		salt,
+		sizeof(salt),
 		ITERATIONS,
 		KEY_SIZE,
 		key);
 	if (ret != 0)
 	{
 		ESP_LOGE(TAG, "Key derivation failed with error: %d", ret);
+		mbedtls_md_free(&md_ctx);
+		mbedtls_ctr_drbg_free(&ctr_drbg);
+		mbedtls_entropy_free(&entropy);
+		return false;
 	}
-	else
+
+	ESP_LOGI(TAG, "Key created");
+	for (size_t i = 0; i < KEY_SIZE; ++i)
 	{
-		ESP_LOGI(TAG, "Key successfully derived");
+		ESP_LOGD(TAG, "Key byte %d: 0x%02x", i, key[i]);
 	}
 
 	mbedtls_md_free(&md_ctx);
@@ -71,54 +119,68 @@ void generate_key(const char *password)
 	File file = SPIFFS.open(KEY_FILE_PATH, FILE_WRITE);
 	if (!file)
 	{
-		ESP_LOGD(TAG, "Failed to open file for writing");
-		return;
+		ESP_LOGE(TAG, "Failed to open file for writing");
+		return false;
 	}
 
 	if (file.write(key, KEY_SIZE) != KEY_SIZE)
 	{
-		ESP_LOGD(TAG, "Failed to write the entire key to SPIFFS");
+		ESP_LOGE(TAG, "Failed to write key to SPIFFS");
+		file.close();
+		return false;
 	}
-	else
-	{
-		ESP_LOGD(TAG, "Key successfully stored in SPIFFS");
-	}
+
+	ESP_LOGI(TAG, "Key stored in SPIFFS");
 	file.close();
+
+	ESP_LOGI(TAG, "Encoding salt to Base32");
+	uint8_t *encoded_salt = NULL;
+	Base32 base32;
+	int encoded_salt_len = base32.toBase32(salt, sizeof(salt), (uint8_t *&)encoded_salt, true);
+	encoded_salt[encoded_salt_len] = '\0';
+	ESP_LOGD(TAG, "Base32 Encoded Salt: %s", reinterpret_cast<char *>(encoded_salt));
+
+	ESP_LOGI(TAG, "Storing salt in config.yml");
+	Configuration config = Configuration::load();
+	config.encryption.salt = String(reinterpret_cast<char *>(encoded_salt));
+	ESP_LOGD(TAG, "Base32 encoded salt %s", config.encryption.salt.c_str());
+	config.save();
+
+	ESP_LOGI(TAG, "derived key generated successfully");
+
+	return true;
 }
 
 bool load_key(uint8_t *key)
 {
-	File keyFile = SPIFFS.open(KEY_FILE_PATH, FILE_READ);
-	if (!keyFile)
+	ESP_LOGI(TAG, "loading key from SPIFFS");
+	File file = SPIFFS.open(KEY_FILE_PATH, FILE_READ);
+	if (!file)
 	{
 		ESP_LOGD(TAG, "Failed to open key file");
 		return false;
 	}
 
-	if (keyFile.read(key, KEY_SIZE) != KEY_SIZE)
+	if (file.read(key, KEY_SIZE) != KEY_SIZE)
 	{
-		ESP_LOGD(TAG, "Failed to read the complete key");
-		keyFile.close();
+		ESP_LOGD(TAG, "Failed to read the key");
+		file.close();
 		return false;
 	}
 
-	keyFile.close();
+	file.close();
+	ESP_LOGI(TAG, "Key loaded successfully");
 	return true;
 }
 
 bool decrypt_text(const char *input, char *output, size_t output_len)
 {
 	size_t input_len = strlen(input);
-	uint8_t key[KEY_SIZE];
-	if (!load_key(key))
-	{
-		return false;
-	}
 
 	mbedtls_aes_context aes;
 	mbedtls_aes_init(&aes);
 
-	if (mbedtls_aes_setkey_dec(&aes, key, KEY_SIZE * 8) != 0)
+	if (mbedtls_aes_setkey_dec(&aes, _key, KEY_SIZE * 8) != 0)
 	{
 		ESP_LOGD(TAG, "Failed to set AES decryption key");
 		mbedtls_aes_free(&aes);
@@ -156,16 +218,10 @@ bool decrypt_text(const char *input, char *output, size_t output_len)
 bool encrypt_text(const char *input, char *output, size_t output_len)
 {
 	size_t input_len = strlen(input);
-	uint8_t key[KEY_SIZE];
-	if (!load_key(key))
-	{
-		return false;
-	}
-
 	mbedtls_aes_context aes;
 	mbedtls_aes_init(&aes);
 
-	if (mbedtls_aes_setkey_enc(&aes, key, KEY_SIZE * 8) != 0)
+	if (mbedtls_aes_setkey_enc(&aes, _key, KEY_SIZE * 8) != 0)
 	{
 		ESP_LOGD(TAG, "Failed to set AES encryption key");
 		mbedtls_aes_free(&aes);
@@ -208,7 +264,37 @@ bool encrypt_text(const char *input, char *output, size_t output_len)
 	return true;
 }
 
-void init_encryption(const char *salt)
+void init_encryption(const char *encoded_salt)
 {
-	_salt = (const unsigned char *)salt;
+	ESP_LOGI(TAG, "initializing encryption");
+
+	size_t encoded_salt_length = strlen(encoded_salt);
+	// NOTE: if the salt isn't empty it must be decoded, and the key loaded from SPIFFS
+	if (encoded_salt_length)
+	{
+		ESP_LOGD(TAG, "decoding salt: %s", encoded_salt);
+		uint8_t *decoded_salt = new uint8_t[SALT_SIZE];
+		memset(decoded_salt, 0, SALT_SIZE);
+		Base32 base32;
+		int decoded_salt_length = base32.fromBase32(
+			reinterpret_cast<byte *>(const_cast<char *>(encoded_salt)),
+			encoded_salt_length,
+			decoded_salt);
+		memset(_salt, 0, SALT_SIZE);
+		memcpy(_salt, decoded_salt, decoded_salt_length);
+		delete[] decoded_salt;
+		for (size_t i = 0; i < SALT_SIZE; ++i)
+		{
+			ESP_LOGD(TAG, "byte %d: 0x%02x", i, _salt[i]);
+		}
+		ESP_LOGD(TAG, "salt decoded successfully");
+
+		load_key(_key);
+		for (size_t i = 0; i < KEY_SIZE; ++i)
+		{
+			ESP_LOGD(TAG, "byte %d: 0x%02x", i, _key[i]);
+		}
+	}
+
+	ESP_LOGI(TAG, "encryption initialized");
 }

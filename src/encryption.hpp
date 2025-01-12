@@ -14,7 +14,7 @@ extern "C"
 
 	void init_encryption(const char *salt);
 	bool key_exists();
-	void generate_key(const char *password);
+	bool generate_key(const char *password);
 	bool decrypt_text(const char *input, char *output, size_t output_len);
 	bool encrypt_text(const char *input, char *output, size_t output_len);
 
@@ -23,8 +23,9 @@ extern "C"
 
 #include <SPIFFS.h>
 #include <esp_log.h>
+#include <Base32.h>
 #include "storage.hpp"
-
+#include "config.hpp"
 #endif
 
 #endif // ENCRYPTION_H
