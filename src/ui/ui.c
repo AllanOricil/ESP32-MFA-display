@@ -7,6 +7,7 @@ lv_obj_t *ui_totp_screen;
 lv_obj_t *ui_pin_screen;
 lv_obj_t *ui_key_creation_screen;
 lv_obj_t *ui_key_creation_screen_password_textarea;
+lv_obj_t *ui_key_creation_screen_password_confirmation_textarea;
 lv_obj_t *ui_touch_calibration_screen;
 lv_obj_t *ui_pin_screen_textarea;
 lv_obj_t *ui_touch_calibration_screen_label;
@@ -19,6 +20,7 @@ void ui_event_totp_screen(lv_event_t *e);
 void ui_event_pin_screen_keyboard_button(lv_event_t *e);
 void ui_event_pin_screen_textarea(lv_event_t *e);
 void ui_event_key_creation_screen_keybard(lv_event_t *e);
+void ui_event_key_creation_screen_textarea(lv_event_t *e);
 void ui_totp_screen_update_totp_labels();
 void ui_totp_screen_update_totp_countdowns();
 void ui_totp_screen_render_totp_components();
@@ -65,6 +67,15 @@ void ui_event_key_creation_screen_keybard(lv_event_t *e)
     if (event_code == LV_EVENT_READY)
     {
         on_key_creation_screen_form_submit(e);
+    }
+}
+
+void ui_event_key_creation_screen_textarea(lv_event_t *e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    if (event_code == LV_EVENT_CLICKED)
+    {
+        on_key_creation_screen_textarea_focus(e);
     }
 }
 

@@ -66,6 +66,7 @@ void loop()
   switch (application_state)
   {
   case START:
+    static unsigned long state_change_time = 0;
     if (touch_is_calibrated())
     {
       application_state = TOUCH_CALIBRATION_COMPLETE;
@@ -74,10 +75,10 @@ void loop()
     {
       application_state = TOUCH_CALIBRATION_START;
     }
+    state_change_time = millis();
     break;
 
   case TOUCH_CALIBRATION_START:
-    static unsigned long state_change_time = 0;
     lv_scr_load(ui_touch_calibration_screen);
     application_state = TOUCH_CALIBRATION_MIN;
     state_change_time = millis();
@@ -98,6 +99,7 @@ void loop()
     {
       touch_calibrate_max();
       application_state = TOUCH_CALIBRATION_UPDATE;
+      state_change_time = millis();
     }
     break;
 

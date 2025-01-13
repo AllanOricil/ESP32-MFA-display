@@ -86,6 +86,8 @@
     "entropy.h": "c",
     "ctr_drbg.h": "c",
     "encryption.hpp": "c",
-    "spiffs.h": "c"
+    "spiffs.h": "c",
+    "config.hpp": "c",
+    "base32.h": "c"
   }
 }
