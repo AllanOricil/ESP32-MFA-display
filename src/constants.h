@@ -30,11 +30,6 @@
 // NOTE: how many minutes the session is valid. For security purposes, sessions are set to 5 minutes but can be overwritten by the User in config.yml
 #define MAX_MANAGER_SESSION_LENGTH 5
 
-// UI
-#define PIN_SCREEN_NAME "pin"
-#define TOTP_SCREEN_NAME "totp"
-#define TOUCH_CALIBRATION_SCREEN_NAME "touch-calibration"
-
 // TOUCH
 #define TOUCH_DOUBLE_TOUCH_INTERVAL 300
 #define TOUCH_CALIBRATION_SPIFFS_FILE_PATH "/calibration.txt"

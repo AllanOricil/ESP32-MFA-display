@@ -48,7 +48,8 @@ void reset_display_off_timer()
 
 void check_display_timeout()
 {
-    if (sleep_timeout)
+    lv_obj_t *active_screen = lv_scr_act();
+    if (sleep_timeout && (active_screen == ui_totp_screen || active_screen == ui_pin_screen))
     {
         unsigned long elapsed_time = millis() - time_display_turned_off;
         if (elapsed_time >= sleep_timeout && display_is_active)
@@ -68,8 +69,7 @@ void display_handle_single_touch()
 void display_handle_double_touch()
 {
     lv_obj_t *active_screen = lv_scr_act();
-    const char *active_screen_name = (const char *)lv_obj_get_user_data(active_screen);
-    if (strcmp(active_screen_name, TOTP_SCREEN_NAME) == 0)
+    if (active_screen == ui_totp_screen)
     {
 
         if (display_is_active)

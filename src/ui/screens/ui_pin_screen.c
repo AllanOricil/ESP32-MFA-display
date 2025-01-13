@@ -4,8 +4,6 @@
 void ui_pin_screen_init(void)
 {
     ui_pin_screen = lv_obj_create(NULL);
-    const char *name = PIN_SCREEN_NAME;
-    lv_obj_set_user_data(ui_pin_screen, (void *)name);
     lv_obj_add_flag(ui_pin_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(ui_pin_screen, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_pin_screen, lv_color_make(12, 18, 30), LV_PART_MAIN | LV_STATE_DEFAULT);

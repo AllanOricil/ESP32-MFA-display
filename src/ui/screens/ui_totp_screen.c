@@ -55,8 +55,6 @@ lv_obj_t *create_totp_component(
 void ui_totp_screen_init(void)
 {
     ui_totp_screen = lv_obj_create(NULL);
-    const char *name = TOTP_SCREEN_NAME;
-    lv_obj_set_user_data(ui_totp_screen, (void *)name);
     lv_obj_add_flag(ui_totp_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(ui_totp_screen, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(ui_totp_screen, lv_color_make(12, 18, 30), LV_PART_MAIN | LV_STATE_DEFAULT);
