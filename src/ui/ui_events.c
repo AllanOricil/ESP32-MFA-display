@@ -106,12 +106,13 @@ void on_key_creation_screen_form_submit(lv_event_t *e)
 
     if (strcmp(password, password_confirmation) != 0)
     {
-        char message[128];
-        sprintf(message, "Passwords do not match. Please try again");
-        lv_obj_center(lv_msgbox_create(NULL, "ERROR", message, NULL, true));
+        lv_obj_center(lv_msgbox_create(NULL, "ERROR", "Passwords do not match. Please try again", NULL, true));
         return;
     }
 
+    lv_obj_center(lv_msgbox_create(NULL, NULL, "creating key...", NULL, false));
+
+    // TODO: handle errors
     generate_key(password);
 
     if (config.display_pin_screen)
