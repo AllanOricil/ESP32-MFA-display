@@ -31,7 +31,5 @@ void init_touch_screen(Configuration config)
 
 void display_timeout_handler()
 {
-	ESP_LOGV(TAG, "calling display timeout handler");
 	check_display_timeout();
-	ESP_LOGV(TAG, "display timeout handler called");
 }

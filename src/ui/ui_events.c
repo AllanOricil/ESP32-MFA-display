@@ -6,6 +6,7 @@
 #include "constants.h"
 #include "auth.h"
 #include "mfa.h"
+#include "encryption.hpp"
 
 static const char *TAG = "ui_events";
 
@@ -77,4 +78,49 @@ void on_pin_screen_form_submit(lv_event_t *e)
     config.unlock_attempts = config.max_unlock_attempts;
 
     lv_scr_load(ui_totp_screen);
+}
+
+void on_key_creation_screen_textarea_focus(lv_event_t *e)
+{
+    lv_obj_t *focused_textarea = lv_event_get_target(e);
+    lv_obj_t *keyboard = lv_event_get_user_data(e);
+
+    lv_keyboard_set_textarea(keyboard, focused_textarea);
+}
+
+void on_key_creation_screen_form_submit(lv_event_t *e)
+{
+    const char *password = lv_textarea_get_text(ui_key_creation_screen_password_textarea);
+    const char *password_confirmation = lv_textarea_get_text(ui_key_creation_screen_password_confirmation_textarea);
+    ESP_LOGD(TAG, "Password: %s\n", password);
+    ESP_LOGD(TAG, "Password Confirmation: %s\n", password_confirmation);
+
+    size_t password_len = strlen(password);
+    if (password_len < MIN_PASSWORD_LENGTH)
+    {
+        char message[128];
+        sprintf(message, "Password is too short. Minimum %d characters is required", MIN_PASSWORD_LENGTH);
+        lv_obj_center(lv_msgbox_create(NULL, "ERROR", message, NULL, true));
+        return;
+    }
+
+    if (strcmp(password, password_confirmation) != 0)
+    {
+        lv_obj_center(lv_msgbox_create(NULL, "ERROR", "Passwords do not match. Please try again", NULL, true));
+        return;
+    }
+
+    lv_obj_center(lv_msgbox_create(NULL, NULL, "creating key...", NULL, false));
+
+    // TODO: handle errors
+    generate_key(password);
+
+    if (config.display_pin_screen)
+    {
+        lv_scr_load(ui_pin_screen);
+    }
+    else
+    {
+        lv_scr_load(ui_totp_screen);
+    }
 }

@@ -12,6 +12,7 @@
 #include "wifi.hpp"
 #include "touch-screen.hpp"
 #include "manager.hpp"
+#include "encryption.hpp"
 
 static const char *TAG = "main";
 
@@ -33,9 +34,9 @@ void setup()
 #endif
   ESP_LOGI(TAG, "----------- begin setup ------------");
   init_storage();
-  load_services();
   Configuration config = Configuration::load();
-
+  init_encryption(config.encryption.salt.c_str());
+  load_services();
   init_auth(
       config.authentication.pin.hash.c_str(),
       config.authentication.pin.key.c_str(),
@@ -46,14 +47,14 @@ void setup()
   init_touch_screen(config);
   const char *local_network_ip = init_wifi(config).c_str();
   init_clock();
-
   if (config.is_manager_configured())
   {
     init_manager(config, local_network_ip);
   }
   init_ui(
       config.is_authentication_configured(),
-      config.authentication.unlock_attempts);
+      config.authentication.unlock_attempts,
+      !config.encryption.salt.isEmpty() || !key_exists());
   ESP_LOGI(TAG, "----------- end setup ------------");
 }
 
@@ -65,6 +66,7 @@ void loop()
   switch (application_state)
   {
   case START:
+    static unsigned long state_change_time = 0;
     if (touch_is_calibrated())
     {
       application_state = TOUCH_CALIBRATION_COMPLETE;
@@ -73,10 +75,10 @@ void loop()
     {
       application_state = TOUCH_CALIBRATION_START;
     }
+    state_change_time = millis();
     break;
 
   case TOUCH_CALIBRATION_START:
-    static unsigned long state_change_time = 0;
     lv_scr_load(ui_touch_calibration_screen);
     application_state = TOUCH_CALIBRATION_MIN;
     state_change_time = millis();
@@ -97,6 +99,7 @@ void loop()
     {
       touch_calibrate_max();
       application_state = TOUCH_CALIBRATION_UPDATE;
+      state_change_time = millis();
     }
     break;
 

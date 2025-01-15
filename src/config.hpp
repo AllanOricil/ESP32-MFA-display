@@ -17,6 +17,10 @@ public:
 		String ssid = "";
 		String password = "";
 	} wifi;
+	struct EncryptionSettings
+	{
+		String salt = "";
+	} encryption;
 	struct ManagerSettings
 	{
 		struct ManagerAuthenticationSettings
