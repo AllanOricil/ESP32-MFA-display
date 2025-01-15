@@ -1,24 +1,4 @@
 <template>
-  <!-- TODO: move toast to layout -->
-  <div
-    id="submit-toast"
-    class="toast align-items-center border-0"
-    role="alert"
-    aria-live="assertive"
-    aria-atomic="true"
-  >
-    <div class="d-flex">
-      <div class="toast-body" :class="toastClass">
-        {{ toastMessage }}
-      </div>
-      <button
-        type="button"
-        class="btn-close me-2 m-auto"
-        data-bs-dismiss="toast"
-        aria-label="Close"
-      ></button>
-    </div>
-  </div>
   <form class="space-y-4" @submit.prevent="onSubmit">
     <div class="mb-4">
       <h4 class="mb-3">Wi-Fi</h4>
@@ -105,7 +85,7 @@
     </div>
 
     <div class="d-grid">
-      <button type="submit" data-bs-theme="dark" class="btn btn-secondary">
+      <button type="submit" data-bs-theme="dark" class="btn btn-light">
         Save
       </button>
     </div>
@@ -114,10 +94,14 @@
 
 <script lang="ts" setup>
 import jsYaml from "js-yaml";
-import { ref, onMounted } from "vue";
+import { ref, onBeforeMount, inject } from "vue";
 import ESP32MFAAuthenticatorClient, {
+  ESP32MFAAuthenticatorClientValidationError,
+  ESP32MFAAuthenticatorClientError,
   type Config,
 } from "~/api/esp32-mfa-authenticator-client";
+
+const showToast = inject("showToast") as Function;
 
 const settings = ref<Config>({
   wifi: {
@@ -139,9 +123,6 @@ const settings = ref<Config>({
   },
 });
 
-let toastInstance: bootstrap.Toast | null = null;
-const toastMessage = ref<string>("");
-const toastClass = ref<string>("");
 async function onSubmit(event: SubmitEvent) {
   try {
     const client = new ESP32MFAAuthenticatorClient();
@@ -164,32 +145,36 @@ async function onSubmit(event: SubmitEvent) {
         calibrate: settings.value.touch.calibrate ? 1 : 0,
       },
     });
-
-    toastMessage.value = "Settings updated successfully!";
-    toastClass.value = "bg-dark text-white";
-    if (toastInstance) toastInstance.show();
+    showToast("Configuration updated successfully");
   } catch (error) {
-    toastMessage.value = "Error updating settings. Please, try again.";
-    toastClass.value = "bg-danger text-white";
-    if (toastInstance) toastInstance.show();
+    console.error("Error while submiting settings form:", error);
+    // NOTE: client-side validation
+    if (error instanceof ESP32MFAAuthenticatorClientValidationError) {
+      if (error.errors) {
+        errors.value.push(...error.errors);
+      } else {
+        errors.value.push("something unknown happened");
+      }
+    }
+    // NOTE: server-side response error
+    else if (error instanceof ESP32MFAAuthenticatorClientError) {
+      if (error.response?.data.code === "INVALID_BODY") {
+        errors.value.push(...error.response?.data?.errors);
+      } else {
+        errors.value.push("something unknown happened");
+      }
+    } else {
+      errors.value.push("something unknown happened");
+    }
   }
 }
 
-onMounted(async () => {
-  const toastElement = document.getElementById("submit-toast");
-  if (toastElement) {
-    toastInstance = new bootstrap.Toast(toastElement, {
-      autohide: false,
-    });
-  }
-
+onBeforeMount(async () => {
   try {
     const client = new ESP32MFAAuthenticatorClient();
     settings.value = await client.fetchConfig();
   } catch (error) {
-    toastMessage.value = "Error loading settings";
-    toastClass.value = "bg-danger text-white";
-    if (toastInstance) toastInstance.show();
+    showToast("Failed to load settings", "error");
   }
 });
 </script>

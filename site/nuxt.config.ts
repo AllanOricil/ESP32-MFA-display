@@ -39,6 +39,8 @@ export default defineNuxtConfig({
           // NOTE: https://github.com/rollup/rollup/issues/2756#issuecomment-951370238
           // NOTE: a single js because esp32 server can't handle serving multiple ones in parallel, consistently. It throws an exception or fail to serve a partition.
           manualChunks: () => "everything.js",
+          // NOTE: I had to prefix _nuxt because the js was not appearing in .output/public/_nuxt and I need it to be in that location because of the csrf token injection process in the server
+          entryFileNames: () => "_nuxt/index.js",
         },
       },
     },

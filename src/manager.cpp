@@ -4,6 +4,9 @@ static const char *TAG = "manager";
 
 AsyncWebServer server(80);
 
+// NOTE: we store the CSRF_TOKEN to validate it during requests made by the client
+String CSRF_TOKEN = String(random(0xFFFFFFFF), HEX);
+
 String get_cookie(AsyncWebServerRequest *request, const String &name)
 {
 	String cookies = request->header("Cookie");
@@ -54,6 +57,28 @@ void is_authorized(
 	}
 }
 
+void is_csrf_valid(
+	AsyncWebServerRequest *request,
+	const std::function<void(AsyncWebServerRequest *)> &handler)
+{
+	try
+	{
+		String csrf_token = request->header("x-csrf-token");
+		if (csrf_token != CSRF_TOKEN)
+		{
+			request->send(403, "application/json", "{\"message\":\"forbidden\"}");
+			ESP_LOGI(TAG, "forbidden");
+			return;
+		}
+		handler(request);
+	}
+	catch (const std::exception &e)
+	{
+		ESP_LOGE(TAG, "Error while validating the CSRF token: %s", e.what());
+		request->send(500, "application/json", "{\"message\":\"something went wrong\"}");
+	}
+}
+
 void init_manager(Configuration config, const char *local_network_ip)
 {
 	ESP_LOGI(TAG, "initializing manager server");
@@ -98,6 +123,26 @@ void init_manager(Configuration config, const char *local_network_ip)
 
 	// NOTE: configuring assets routes
 	server.serveStatic("/_nuxt/", SPIFFS, "/_nuxt/");
+
+	// NOTE: here we add the csrf token in the client
+	server.on(
+		"/_nuxt/index.js",
+		HTTP_GET,
+		[](AsyncWebServerRequest *request)
+		{
+			File file = SPIFFS.open("/_nuxt/index.js", FILE_READ);
+			if (!file)
+			{
+				request->send(500, "text/plain", "something went wrong");
+				return;
+			}
+
+			String jsContent = file.readString();
+			file.close();
+
+			jsContent.replace("{{CSRF_TOKEN}}", CSRF_TOKEN);
+			request->send(200, "application/javascript", jsContent);
+		});
 
 	server.on(
 		"/favicon.ico",
@@ -225,16 +270,21 @@ void init_manager(Configuration config, const char *local_network_ip)
 				request,
 				[config](AsyncWebServerRequest *request)
 				{
-					try
-					{
-						request->send(200, "application/json", config.to_json_string(true));
-						ESP_LOGI(TAG, "session is valid and can read config");
-					}
-					catch (const std::exception &e)
-					{
-						ESP_LOGE(TAG, "error while fetching config: %s", e.what());
-						request->send(500, "application/json", "{\"message\":\"something went wrong\"}");
-					}
+					is_csrf_valid(
+						request,
+						[config](AsyncWebServerRequest *request)
+						{
+							try
+							{
+								request->send(200, "application/json", config.to_json_string(true));
+								ESP_LOGI(TAG, "session is valid and can read config");
+							}
+							catch (const std::exception &e)
+							{
+								ESP_LOGE(TAG, "error while fetching config: %s", e.what());
+								request->send(500, "application/json", "{\"message\":\"something went wrong\"}");
+							}
+						});
 				});
 		});
 
@@ -249,22 +299,27 @@ void init_manager(Configuration config, const char *local_network_ip)
 				request,
 				[config, data](AsyncWebServerRequest *request)
 				{
-					try
-					{
-						String data_json = String((char *)data);
-						Configuration new_config = Configuration::parse(data_json);
-						new_config.manager = config.manager;
-						if (new_config.save())
+					is_csrf_valid(
+						request,
+						[config](AsyncWebServerRequest *request)
 						{
-							ESP_LOGI(TAG, "config updated successfully");
-							request->send(200, "application/json", "{\"message\":\"configuration updated\"}");
-						}
-					}
-					catch (const std::exception &e)
-					{
-						ESP_LOGE(TAG, "error while updating config: %s", e.what());
-						request->send(500, "application/json", "{\"message\":\"something went wrong\"}");
-					}
+							try
+							{
+								String data_json = String((char *)data);
+								Configuration new_config = Configuration::parse(data_json);
+								new_config.manager = config.manager;
+								if (new_config.save())
+								{
+									ESP_LOGI(TAG, "config updated successfully");
+									request->send(200, "application/json", "{\"message\":\"configuration updated\"}");
+								}
+							}
+							catch (const std::exception &e)
+							{
+								ESP_LOGE(TAG, "error while updating config: %s", e.what());
+								request->send(500, "application/json", "{\"message\":\"something went wrong\"}");
+							}
+						});
 				});
 		});
 

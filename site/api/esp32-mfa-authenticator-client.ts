@@ -1,5 +1,13 @@
-import { object, array, string, number, boolean, type InferType } from "yup";
-import { type AxiosInstance } from "axios";
+import {
+  object,
+  array,
+  string,
+  number,
+  boolean,
+  type InferType,
+  ValidationError,
+} from "yup";
+import { AxiosError, type AxiosInstance, type AxiosResponse } from "axios";
 import { createAxiosInstance, type RetryConfig } from "@/utils/axios";
 
 const CONFIG_PUT_SCHEMA = object({
@@ -33,11 +41,71 @@ const SERVICES_PUT_SCHEMA = array().of(
     group: number()
       .typeError("Group must be a number")
       .integer("Group must be an integer.")
-      .positive("Group must be positive")
       .required("Group is required.")
       .strict(),
   })
 );
+
+const SERVICES_POST_SCHEMA = array().of(
+  object({
+    name: string()
+      .required("Name is required.")
+      .max(60, "Name must be 60 characters or fewer."),
+    secret: string()
+      .required("Secret is required.")
+      .test(
+        "is-multiple-of-8",
+        "Secret length must be a multiple of 8.",
+        (value) => {
+          return value.length % 8 === 0;
+        }
+      )
+      .test(
+        "is-base32",
+        "Secret must be a valid Base32-encoded string.",
+        (value) => {
+          return value ? /^[A-Z2-7]+=*$/.test(value.toUpperCase()) : false;
+        }
+      ),
+    group: number()
+      .typeError("Group must be a number")
+      .integer("Group must be an integer.")
+      .required("Group is required.")
+      .strict(),
+  })
+);
+
+export class ESP32MFAAuthenticatorClientValidationError extends Error {
+  errors: string[];
+
+  constructor(errors: string[]) {
+    super("Validation error occurred");
+    this.name = "ESP32MFAAuthenticatorClientValidationError";
+    this.errors = errors;
+  }
+}
+
+export interface ESP32MFAAuthenticationClientResponse extends AxiosResponse {}
+export class ESP32MFAAuthenticatorClientError extends AxiosError {
+  constructor(
+    message: string,
+    public code: string,
+    public status: number,
+    public request?: any,
+    public response?: ESP32MFAAuthenticationClientResponse
+  ) {
+    super(message);
+    this.name = "ESP32MFAAuthenticatorClientError";
+    this.code = code;
+    this.status = status;
+    this.request = request;
+    this.response = response;
+
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ESP32MFAAuthenticatorClientError);
+    }
+  }
+}
 
 export interface Config {
   wifi: {
@@ -61,7 +129,8 @@ export interface Config {
 
 export interface Service {
   name: string;
-  totp: string;
+  totp?: string;
+  secret?: string;
   group: number;
 }
 
@@ -73,6 +142,8 @@ export default class ESP32MFAAuthenticatorClient {
       baseURL || "/api/v1",
       {
         "Content-Type": "application/json",
+        // NOTE: this token is generated and replaced in the server
+        "x-csrf-token": "{{CSRF_TOKEN}}",
       },
       5000,
       5
@@ -88,6 +159,15 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data;
     } catch (error) {
       console.error("Error while loging in: ", error);
+      if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
       throw error;
     }
   }
@@ -98,6 +178,15 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data;
     } catch (error) {
       console.error("Error while loging out: ", error);
+      if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
       throw error;
     }
   }
@@ -108,6 +197,15 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data;
     } catch (error) {
       console.error("Error while validating session: ", error);
+      if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
       throw error;
     }
   }
@@ -121,6 +219,19 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data as Config;
     } catch (error) {
       console.error("Error while updating configuration:", error);
+      if (error instanceof ValidationError) {
+        console.error("Validation error:", error.errors);
+        throw new ESP32MFAAuthenticatorClientValidationError(error.errors);
+      } else if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
+
       throw error;
     }
   }
@@ -132,6 +243,15 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data as Config;
     } catch (error) {
       console.error("Error while fetching configuration:", error);
+      if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
       throw error;
     }
   }
@@ -143,6 +263,15 @@ export default class ESP32MFAAuthenticatorClient {
       return response.data as Service[];
     } catch (error) {
       console.error("Error while fetching services:", error);
+      if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
       throw error;
     }
   }
@@ -152,10 +281,49 @@ export default class ESP32MFAAuthenticatorClient {
       console.debug("Validating services");
       await SERVICES_PUT_SCHEMA.validate(services, { abortEarly: false });
       console.debug("Updating services");
-      const response = await this.client.post("/services");
+      const response = await this.client.put("/services");
       return response.data as Service[];
     } catch (error) {
       console.error("Error while updating services:", error);
+      if (error instanceof ValidationError) {
+        console.error("Validation error:", error.errors);
+        throw new ESP32MFAAuthenticatorClientValidationError(error.errors);
+      } else if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  public async newService(services: Service[]): Promise<Service[]> {
+    try {
+      console.debug("Validating services");
+      await SERVICES_POST_SCHEMA.validate(services, { abortEarly: false });
+      console.debug("Creating services");
+      const response = await this.client.post("/services", { services });
+      return response.data as Service[];
+    } catch (error) {
+      console.error("Error while creating service:", error);
+      if (error instanceof ValidationError) {
+        console.error("Validation error:", error.errors);
+        throw new ESP32MFAAuthenticatorClientValidationError(error.errors);
+      } else if (error instanceof AxiosError) {
+        throw new ESP32MFAAuthenticatorClientError(
+          error.message,
+          error.code ?? "UNKNOWN",
+          error.status,
+          error.request,
+          error.response
+        );
+      }
+
       throw error;
     }
   }
